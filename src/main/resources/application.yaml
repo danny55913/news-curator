@@ -3,7 +3,7 @@ spring:
     name: news-curator
   datasource:
     # ../ 를 제거하여 프로젝트 루트 기준 collector/news.db 를 바라보도록 수정
-    url: jdbc:sqlite:collector/news.db
+    url: jdbc:sqlite:C:/Users/USER/IdeaProjects/news-curator/news.db
     driver-class-name: org.sqlite.JDBC
 
   jpa:
