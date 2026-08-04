@@ -6,8 +6,11 @@ import feedparser
 from bs4 import BeautifulSoup
 import ollama
 
-# 1. SQLite DB 파일 경로 및 초기화
-DB_PATH = "news.db"
+# 1. DB 파일 경로를 파이썬 스크립트 위치 기준으로 고정
+# (Spring Boot 루트 디렉토리에서 실행해도 항상 프로젝트 루트/news.db 또는 지정된 db 위치를 찾도록 설정)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# news.db가 프로젝트 루트에 있다면 '../news.db', collector 폴더 내에 있다면 'news.db'로 설정
+DB_PATH = os.path.join(BASE_DIR, "..", "news.db")
 
 def init_db():
     """데이터베이스 테이블 생성 (없는 경우)"""
@@ -99,8 +102,8 @@ def fetch_and_process_news():
 
     feed = feedparser.parse(rss_url)
 
-    # 상위 3개 기사 처리 테스트
-    for i, entry in enumerate(feed.entries[:3], 1):
+    # 💡 수집 개수를 10개로 확대 (신규 기사만 자동으로 선별되어 요약됨)
+    for i, entry in enumerate(feed.entries[:10], 1):
         title = entry.title
         link = entry.link
         clean_description = clean_html(entry.get("description", ""))
@@ -111,7 +114,7 @@ def fetch_and_process_news():
 
         # 2. 중복 체크 (이미 저장된 경우 스킵)
         if is_already_saved(link):
-            print("⏩ 이미 DB에 저장된 기사입니다. 요약을 건너뜁니다.\n")
+            print("⏩ 이미 DB에 저장된 기사입니다. 건너뜁니다.\n")
             continue
 
         # 3. 신규 기사일 경우 Ollama 요약 진행
