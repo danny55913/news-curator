@@ -39,3 +39,7 @@ out/
 # React
 frontend/node_modules/
 frontend/dist/
+
+# SQLite Database
+news.db
+*.db
