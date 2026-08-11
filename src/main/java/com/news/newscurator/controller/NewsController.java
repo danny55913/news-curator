@@ -13,22 +13,24 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/news")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*") // 프론트엔드 연동을 위한 CORS 허용
+@CrossOrigin(origins = "*")
 public class NewsController {
 
     private final NewsRepository newsRepository;
-    private final PythonCrawlerService pythonCrawlerService; // 스케줄러에서 쓰는 파이썬 수집 서비스
+    private final PythonCrawlerService pythonCrawlerService;
 
+    // 🚀 검색어(keyword) 쿼리 파라미터를 수신할 수 있도록 수정
     @GetMapping
-    public List<News> getAllNews() {
+    public List<News> getNews(@RequestParam(required = false) String keyword) {
+        if (keyword != null && !keyword.trim().isEmpty()) {
+            return newsRepository.searchNews(keyword.trim());
+        }
         return newsRepository.findAllByOrderByIdDesc();
     }
 
-    // 🚀 수동 수집 요청 API 추가
     @PostMapping("/refresh")
     public ResponseEntity<String> refreshNews() {
         try {
-            // PythonCrawlerService 내부의 실제 메서드명으로 변경 (예: runPythonScript)
             pythonCrawlerService.runCrawler();
             return ResponseEntity.ok("뉴스 수집이 성공적으로 완료되었습니다.");
         } catch (Exception e) {
