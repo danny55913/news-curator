@@ -21,14 +21,21 @@ public class NewsController {
     @GetMapping
     public ResponseEntity<Page<News>> getNews(
             @RequestParam(required = false) String keyword,
+            @RequestParam(defaultValue = "latest") String sort, // 👈 'latest' 또는 'popular'
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
     ) {
-        // 최신순(id 내림차순) 기본 정렬 적용
-        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "id"));
+        Page<News> newsPage;
 
-        // 💡 searchNews 메서드로 호출
-        Page<News> newsPage = newsRepository.searchNews(keyword, pageable);
+        if ("popular".equalsIgnoreCase(sort)) {
+            // 인기순 (북마크 많은 순)
+            Pageable pageable = PageRequest.of(page, size);
+            newsPage = newsRepository.searchNewsByPopularity(keyword, pageable);
+        } else {
+            // 최신순 (id 내림차순 기본값)
+            Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "id"));
+            newsPage = newsRepository.searchNews(keyword, pageable);
+        }
 
         return ResponseEntity.ok(newsPage);
     }
