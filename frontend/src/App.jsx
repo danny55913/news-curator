@@ -14,8 +14,8 @@ const CATEGORIES = [
 
 function App() {
   // 🔐 인증 및 북마크 상태
-  const [currentUser, setCurrentUser] = useState(null); // 로그인된 사용자 정보 ({ id, username })
-  const [bookmarks, setBookmarks] = useState([]); // 북마크된 news_id 목록 (예: [1, 3, 5])
+  const [currentUser, setCurrentUser] = useState(null); // 로그인된 사용자 정보
+  const [bookmarks, setBookmarks] = useState([]); // 북마크된 news_id 목록
   const [isBookmarkOnly, setIsBookmarkOnly] = useState(false); // '내 북마크' 탭 활성화 여부
 
   // 🔑 모달 상태
@@ -35,6 +35,10 @@ function App() {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeKeyword, setActiveKeyword] = useState('');
 
+  // 📄 페이징 상태
+  const [page, setPage] = useState(0); // 현재 페이지 (0부터 시작)
+  const [totalPages, setTotalPages] = useState(0); // 전체 페이지 수
+
   // 페이지 진입 시 로컬스토리지에서 로그인 정보 복원
   useEffect(() => {
     const savedUser = localStorage.getItem('user');
@@ -45,25 +49,32 @@ function App() {
     }
   }, []);
 
-  // activeKeyword나 selectedCategory가 변경될 때마다 뉴스 다시 로드
+  // page, selectedCategory, activeKeyword 변경 시 뉴스 재로드 (내 북마크 모드 아닐 때)
   useEffect(() => {
-    fetchNews();
-  }, [selectedCategory, activeKeyword]);
+    if (!isBookmarkOnly) {
+      fetchNews();
+    }
+  }, [page, selectedCategory, activeKeyword, isBookmarkOnly]);
 
-  // 뉴스 목록 불러오기 (검색어 / 카테고리 반영)
+  // 뉴스 목록 불러오기 (백엔드 JPA Pageable 연동)
   const fetchNews = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // 카테고리 선택 값과 검색어 중 우선순위 적용
       const queryKeyword = activeKeyword || selectedCategory;
 
       const response = await axios.get('/api/news', {
-        params: queryKeyword ? { keyword: queryKeyword } : {}
+        params: {
+          keyword: queryKeyword || null,
+          page: page,
+          size: 10 // 한 페이지당 10개씩
+        }
       });
 
-      setNewsList(response.data);
+      // Spring Page 객체 응답 안전하게 저장
+      setNewsList(response.data.content || []);
+      setTotalPages(response.data.totalPages || 0);
     } catch (err) {
       console.error('Failed to fetch news:', err);
       setError('뉴스를 불러오는 중 오류가 발생했습니다.');
@@ -72,18 +83,17 @@ function App() {
     }
   };
 
-  // 📌 북마크 목록 불러오기 (백엔드 엔드포인트: /api/bookmarks)
+  // 📌 북마크 목록 불러오기
   const fetchBookmarks = async (memberId) => {
     try {
       const res = await axios.get('/api/bookmarks', { params: { memberId } });
-      // 백엔드가 List<News> 형태 목록을 반환하므로 item.id로 extraction
       setBookmarks(res.data.map(item => item.id));
     } catch (err) {
       console.error('북마크 목록을 불러오지 못했습니다:', err);
     }
   };
 
-  // 📌 북마크 토글 (백엔드 엔드포인트: /api/bookmarks/toggle)
+  // 📌 북마크 토글
   const handleToggleBookmark = async (newsId) => {
     if (!currentUser) {
       alert('로그인이 필요한 기능입니다.');
@@ -93,7 +103,6 @@ function App() {
     }
 
     try {
-      // memberId와 newsId 모두 RequestParam으로 전송
       await axios.post('/api/bookmarks/toggle', null, {
         params: {
           memberId: currentUser.id,
@@ -110,7 +119,7 @@ function App() {
     }
   };
 
-  // 🔑 회원가입 / 로그인 제출 핸들러
+  // 🔑 회원가입 / 로그인 제출
   const handleAuthSubmit = async (e) => {
     e.preventDefault();
     setAuthError('');
@@ -135,7 +144,7 @@ function App() {
     }
   };
 
-  // 🚪 로그아웃 핸들러
+  // 🚪 로그아웃
   const handleLogout = () => {
     setCurrentUser(null);
     setBookmarks([]);
@@ -159,19 +168,21 @@ function App() {
     }
   };
 
-  // 검색 제출 핸들러
+  // 검색 제출
   const handleSearchSubmit = (e) => {
     e.preventDefault();
     setIsBookmarkOnly(false);
     setSelectedCategory('');
+    setPage(0); // 👈 첫 페이지로 초기화
     setActiveKeyword(searchTerm);
   };
 
-  // 카테고리 탭 클릭 핸들러
+  // 카테고리 탭 클릭
   const handleCategoryClick = (categoryValue) => {
     setIsBookmarkOnly(false);
     setSelectedCategory(categoryValue);
     setSearchTerm('');
+    setPage(0); // 👈 첫 페이지로 초기화
     setActiveKeyword('');
   };
 
@@ -212,7 +223,6 @@ function App() {
 
       {/* 🚀 검색바 및 카테고리 필터 영역 */}
       <section className="filter-section">
-        {/* 검색창 */}
         <form onSubmit={handleSearchSubmit} className="search-form">
           <div className="search-input-wrapper">
             <Search className="search-icon" />
@@ -227,7 +237,6 @@ function App() {
           <button type="submit" className="search-btn">검색</button>
         </form>
 
-        {/* 카테고리 탭 */}
         <div className="category-tabs">
           {CATEGORIES.map((cat) => (
             <button
@@ -241,7 +250,6 @@ function App() {
             </button>
           ))}
 
-          {/* 내 북마크 탭 */}
           <button
             className={`category-tab bookmark-tab ${isBookmarkOnly ? 'active' : ''}`}
             onClick={() => {
@@ -262,7 +270,7 @@ function App() {
         </div>
       </section>
 
-      {/* 수집 진행 중 상태 표시 */}
+      {/* 수집/로딩 상태 표시 */}
       {isRefreshing && (
         <div className="status-box">
           <Loader2 className="spinner" />
@@ -287,6 +295,7 @@ function App() {
         </div>
       )}
 
+      {/* 뉴스 카드 리스트 */}
       {!loading && !isRefreshing && !error && (
         <div className="news-list">
           {newsList
@@ -323,6 +332,31 @@ function App() {
                 </article>
               );
             })}
+        </div>
+      )}
+
+      {/* 📄 페이지네이션 영역 */}
+      {!loading && !isRefreshing && !isBookmarkOnly && totalPages > 1 && (
+        <div className="pagination">
+          <button
+            onClick={() => setPage(prev => Math.max(prev - 1, 0))}
+            disabled={page === 0}
+            className="page-btn"
+          >
+            이전
+          </button>
+
+          <span className="page-info">
+            {page + 1} / {totalPages} 페이지
+          </span>
+
+          <button
+            onClick={() => setPage(prev => Math.min(prev + 1, totalPages - 1))}
+            disabled={page >= totalPages - 1}
+            className="page-btn"
+          >
+            다음
+          </button>
         </div>
       )}
 
