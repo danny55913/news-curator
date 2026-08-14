@@ -35,6 +35,9 @@ function App() {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeKeyword, setActiveKeyword] = useState('');
 
+  // 1. App 컴포넌트 상단 state에 sortBy 추가
+  const [sortBy, setSortBy] = useState('latest'); // 'latest' | 'popular'
+
   // 📄 페이징 상태
   const [page, setPage] = useState(0); // 현재 페이지 (0부터 시작)
   const [totalPages, setTotalPages] = useState(0); // 전체 페이지 수
@@ -56,7 +59,14 @@ function App() {
     }
   }, [page, selectedCategory, activeKeyword, isBookmarkOnly]);
 
-  // 뉴스 목록 불러오기 (백엔드 JPA Pageable 연동)
+  // 2. useEffect 의존성 배열에 sortBy 추가
+  useEffect(() => {
+    if (!isBookmarkOnly) {
+      fetchNews();
+    }
+  }, [page, selectedCategory, activeKeyword, isBookmarkOnly, sortBy]); // 👈 sortBy 추가
+
+  // 3. fetchNews 함수 수정
   const fetchNews = async () => {
     try {
       setLoading(true);
@@ -67,12 +77,12 @@ function App() {
       const response = await axios.get('/api/news', {
         params: {
           keyword: queryKeyword || null,
+          sort: sortBy, // 👈 백엔드로 'latest' 또는 'popular' 전달
           page: page,
-          size: 10 // 한 페이지당 10개씩
+          size: 10
         }
       });
 
-      // Spring Page 객체 응답 안전하게 저장
       setNewsList(response.data.content || []);
       setTotalPages(response.data.totalPages || 0);
     } catch (err) {
@@ -186,6 +196,12 @@ function App() {
     setActiveKeyword('');
   };
 
+  // 4. 정렬 변경 핸들러
+  const handleSortChange = (newSort) => {
+    setSortBy(newSort);
+    setPage(0); // 정렬 변경 시 첫 페이지로 이동
+  };
+
   return (
     <div className="container">
       <header className="header">
@@ -222,53 +238,76 @@ function App() {
       </header>
 
       {/* 🚀 검색바 및 카테고리 필터 영역 */}
-      <section className="filter-section">
-        <form onSubmit={handleSearchSubmit} className="search-form">
-          <div className="search-input-wrapper">
-            <Search className="search-icon" />
-            <input
-              type="text"
-              placeholder="뉴스 제목 또는 요약 검색..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="search-input"
-            />
+        <section className="filter-section">
+          {/* 검색창 */}
+          <form onSubmit={handleSearchSubmit} className="search-form">
+            <div className="search-input-wrapper">
+              <Search className="search-icon" />
+              <input
+                type="text"
+                placeholder="뉴스 제목 또는 요약 검색..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="search-input"
+              />
+            </div>
+            <button type="submit" className="search-btn">검색</button>
+          </form>
+
+          {/* 카테고리 & 정렬 컨트롤 영역 */}
+          <div className="filter-controls">
+            {/* 카테고리 탭 */}
+            <div className="category-tabs">
+              {CATEGORIES.map((cat) => (
+                <button
+                  key={cat.label}
+                  className={`category-tab ${
+                    selectedCategory === cat.value && !activeKeyword && !isBookmarkOnly ? 'active' : ''
+                  }`}
+                  onClick={() => handleCategoryClick(cat.value)}
+                >
+                  {cat.label}
+                </button>
+              ))}
+
+              <button
+                className={`category-tab bookmark-tab ${isBookmarkOnly ? 'active' : ''}`}
+                onClick={() => {
+                  if (!currentUser) {
+                    alert('로그인이 필요한 기능입니다.');
+                    setAuthMode('login');
+                    setShowAuthModal(true);
+                    return;
+                  }
+                  setIsBookmarkOnly(true);
+                  setSelectedCategory('');
+                  setSearchTerm('');
+                  setActiveKeyword('');
+                }}
+              >
+                📌 내 북마크
+              </button>
+            </div>
+
+            {/* 🔥 정렬 스위치 (내 북마크 모드가 아닐 때만 표시) */}
+            {!isBookmarkOnly && (
+              <div className="sort-buttons">
+                <button
+                  className={`sort-btn ${sortBy === 'latest' ? 'active' : ''}`}
+                  onClick={() => handleSortChange('latest')}
+                >
+                  최신순
+                </button>
+                <button
+                  className={`sort-btn ${sortBy === 'popular' ? 'active' : ''}`}
+                  onClick={() => handleSortChange('popular')}
+                >
+                  🔥 인기순
+                </button>
+              </div>
+            )}
           </div>
-          <button type="submit" className="search-btn">검색</button>
-        </form>
-
-        <div className="category-tabs">
-          {CATEGORIES.map((cat) => (
-            <button
-              key={cat.label}
-              className={`category-tab ${
-                selectedCategory === cat.value && !activeKeyword && !isBookmarkOnly ? 'active' : ''
-              }`}
-              onClick={() => handleCategoryClick(cat.value)}
-            >
-              {cat.label}
-            </button>
-          ))}
-
-          <button
-            className={`category-tab bookmark-tab ${isBookmarkOnly ? 'active' : ''}`}
-            onClick={() => {
-              if (!currentUser) {
-                alert('로그인이 필요한 기능입니다.');
-                setAuthMode('login');
-                setShowAuthModal(true);
-                return;
-              }
-              setIsBookmarkOnly(true);
-              setSelectedCategory('');
-              setSearchTerm('');
-              setActiveKeyword('');
-            }}
-          >
-            📌 내 북마크
-          </button>
-        </div>
-      </section>
+        </section>
 
       {/* 수집/로딩 상태 표시 */}
       {isRefreshing && (

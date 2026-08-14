@@ -11,8 +11,15 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface NewsRepository extends JpaRepository<News, Long> {
 
-    // 🚀 검색어 필터링 및 페이징
+    // 1. 최신순 정렬 (기존 searchNews 유지)
     @Query("SELECT n FROM News n WHERE " +
             "(:keyword IS NULL OR :keyword = '' OR LOWER(n.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(n.summary) LIKE LOWER(CONCAT('%', :keyword, '%')))")
     Page<News> searchNews(@Param("keyword") String keyword, Pageable pageable);
+
+    // 2. 🔥 인기순 정렬 (북마크 개수 많은 순 -> 최신순)
+    @Query("SELECT n FROM News n LEFT JOIN Bookmark b ON b.news = n " +
+            "WHERE (:keyword IS NULL OR :keyword = '' OR LOWER(n.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(n.summary) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+            "GROUP BY n " +
+            "ORDER BY COUNT(b) DESC, n.id DESC")
+    Page<News> searchNewsByPopularity(@Param("keyword") String keyword, Pageable pageable);
 }
